@@ -1,0 +1,15 @@
+{
+  "name": "audio-vis",
+  "version": "0.0.0",
+  "description": "Audio visualization from your microphone",
+  "main": "app.js",
+  "dependencies": {
+    "connect": "^2.17.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gareth Marshall",
+  "license": "ISC"
+}

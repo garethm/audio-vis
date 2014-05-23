@@ -1,0 +1,114 @@
+<html>
+<head>
+  <style>
+  #display div {
+    background: #ccc;
+    height: 20px;
+    width: 0;
+  }
+  #bar1 {
+    background: #ddd;
+  }
+  </style>
+</head>
+<body>
+  <div id="display">
+    <div id="bar1"></div>
+    <div id="bar2"></div>
+    <div id="bar3"></div>
+    <div id="bar4"></div>
+    <div id="bar5"></div>
+    <div id="bar6"></div>
+    <div id="bar7"></div>
+    <div id="bar8"></div>
+    <div id="bar9"></div>
+    <div id="bar10"></div>
+    <div id="bar11"></div>
+    <div id="bar12"></div>
+    <div id="bar13"></div>
+    <div id="bar14"></div>
+    <div id="bar15"></div>
+    <div id="bar16"></div>
+  </div>
+
+  <script src="jquery-1.11.1.min.js"></script>
+  <script src="lodash.min.js"></script>
+  <script>
+  var errorCallback = function(e) {
+    console.log('Reeeejected!', e);
+  };
+
+  function sum(a) {
+    return _.reduce(a, function (n, acc) { return acc + n; }, 0);
+  }
+
+  function condense(a, bucketCount) {
+    var itemsPerBucket = a.length / bucketCount;
+    var buckets = [];
+    var bucket = [];
+    for (var i = 0; i < a.length; i++) {
+      bucket.push(a[i]);
+      if (bucket.length > itemsPerBucket) {
+        if (bucket.length > 0) {
+          buckets.push(sum(bucket) / bucket.length);
+        } else {
+          buckets.push(0);
+        }
+        bucket = [];
+      }
+    }
+    if (bucket.length > 0) {
+      buckets.push(sum(bucket) / bucket.length);
+    }
+    return buckets;
+  }
+
+  function updateDisplay(analyser) {
+    var bins = analyser.frequencyBinCount;
+    var data = new Float32Array(bins);
+    analyser.getFloatFrequencyData(data);
+
+    _.each(data, function (value, index) {
+      var bar = $(bars[index]);
+      var norm = Math.abs(128 + value) / 128 * 256;
+      bar.css('width', norm);
+
+      var red = (norm < 128)?Math.floor(norm*2):255;
+      var green = (norm < 128)?255:(255-Math.floor(norm-128)*2);
+      var blue = 128;
+      bar.css('background-color', 'rgb(' + red + ', ' + green + ', ' + blue + ')');
+    });
+
+    window.requestAnimationFrame(_.bind(updateDisplay, this, analyser));
+  }
+
+  var bars = [];
+
+  $(document).ready(function () {
+      for (var i = 1; i < 17; i++) {
+        bars.push(document.getElementById('bar' + i));
+      }
+
+      window.requestAnimationFrame = window.requestAnimationFrame ||
+                                     window.mozRequestAnimationFrame ||
+                                     window.webkitRequestAnimationFrame ||
+                                     window.msRequestAnimationFrame;
+      navigator.getUserMedia  = navigator.getUserMedia ||
+                                navigator.webkitGetUserMedia ||
+                                navigator.mozGetUserMedia ||
+                                navigator.msGetUserMedia;
+
+      // Not showing vendor prefixes.
+      navigator.getUserMedia({audio: true}, function(stream) {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        var context = new AudioContext();
+        var microphone = context.createMediaStreamSource(stream);
+        var analyser = context.createAnalyser();
+        analyser.fftSize = 32;
+        microphone.connect(analyser);
+        window.requestAnimationFrame(_.bind(updateDisplay, this, analyser));
+      }, errorCallback);
+  });
+  </script>
+</body>
+</html>
