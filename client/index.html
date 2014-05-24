@@ -64,6 +64,7 @@
     return buckets;
   }
 
+  var currentAnalysis = [0, 0, 0, 0, 0, 0];
   var previousAnalysis = [0, 0, 0, 0, 0, 0];
   var energyHistoryWindowSize = 200;
   var energyHistory = [];
@@ -83,7 +84,7 @@
   function plotEnergy() {
     var maxDelta = 0;
     for (var i = 0; i < energyDeltas.length; ++i) {
-      var delta = Math.abs(energyDeltas[i].value);
+      var delta = Math.abs(energyDeltas[i]);
       maxDelta = (delta > maxDelta)?delta:maxDelta;
     }
 
@@ -100,7 +101,7 @@
 
     context.beginPath();
     for (var i = 0; i < energyDeltas.length; ++i) {
-      var y = (1 + energyDeltas[i].value / maxDelta) * canvas.height * 0.5;
+      var y = energyDeltas[i] / maxDelta * canvas.height;
       if (i === 0) {
         context.moveTo(0, y);
       } else {
@@ -123,15 +124,28 @@
     context.stroke();
   }
 
-  function updateEnergy(energy) {
-    energyHistory.push(energy);
-    if (energyHistory.length >= energyHistoryWindowSize) {
-      var mean = _.reduce(energyHistory, function (total, value) { return total + value; }, 0) / energyHistoryWindowSize;
+  function updateEnergy(index, energy) {
+    previousAnalysis[index] = currentAnalysis[index];
+    currentAnalysis[index] = energy;
+  }
+
+  function detectBeats() {
+    var deltas = [];
+    var energy = 0;
+    _.each(currentAnalysis, function (value, index) {
+      deltas[index] = value - previousAnalysis[index];
+      deltas[index] = (deltas[index] > 0)?deltas[index]:0;
+      energy += deltas[index];
+    });
+
+    energyHistory.push(deltas);
+    if (energyHistory.length > energyHistoryWindowSize) {
       energyHistory = energyHistory.slice(1, energyHistoryWindowSize);
-      energyDeltas.push({ value: Math.floor(energy - mean), beat: energy > mean * beatThreshold });
-      if (energyDeltas.length > energyHistoryWindowSize) {
-        energyDeltas = energyDeltas.slice(1, energyHistoryWindowSize);
-      }
+    }
+
+    energyDeltas.push(energy);
+    if (energyDeltas.length > energyHistoryWindowSize) {
+      energyDeltas = energyDeltas.slice(1, energyHistoryWindowSize);
     }
   }
 
@@ -146,10 +160,10 @@
     _.each(data, function (value, index) {
       var norm = Math.abs(128 + value) / 128 * 256;
       plotBar(value, index, norm);
-      energy += norm;
+      updateEnergy(index, norm);
     });
 
-    updateEnergy(energy);
+    detectBeats();
     plotEnergy();
 
     window.requestAnimationFrame(_.bind(nextSample, this, analyser));
