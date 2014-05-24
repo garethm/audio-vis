@@ -12,6 +12,7 @@
   </style>
 </head>
 <body>
+  <canvas width="512" height="32"></canvas>
   <div id="display">
     <div id="bar1"></div>
     <div id="bar2"></div>
@@ -63,30 +64,107 @@
     return buckets;
   }
 
-  function updateDisplay(analyser) {
+  var previousAnalysis = [0, 0, 0, 0, 0, 0];
+  var energyHistoryWindowSize = 200;
+  var energyHistory = [];
+  var energyDeltas = [];
+  var beatThreshold = 1.3;
+
+  function plotBar(value, index, norm) {
+    var bar = $(bars[index]);
+    bar.css('width', norm / 256  * display.width() + 'px');
+
+    var red = (norm < 128)?Math.floor(norm*2):255;
+    var green = (norm < 128)?255:(255-Math.floor(norm-128)*2);
+    var blue = 128;
+    bar.css('background-color', 'rgb(' + red + ', ' + green + ', ' + blue + ')');
+  }
+
+  function plotEnergy() {
+    var maxDelta = 0;
+    for (var i = 0; i < energyDeltas.length; ++i) {
+      var delta = Math.abs(energyDeltas[i].value);
+      maxDelta = (delta > maxDelta)?delta:maxDelta;
+    }
+
+    var canvas = $('canvas')[0];
+    var context = canvas.getContext('2d');
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.strokeStyle = '#000000';
+    context.lineWidth = 1;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+
+    context.beginPath();
+    for (var i = 0; i < energyDeltas.length; ++i) {
+      var y = (1 + energyDeltas[i].value / maxDelta) * canvas.height * 0.5;
+      if (i === 0) {
+        context.moveTo(0, y);
+      } else {
+        context.lineTo(i / energyDeltas.length * canvas.width, y);
+      }
+    }
+    context.stroke();
+
+    context.strokeStyle = '#0000ff';
+    context.lineWidth = 2;
+    context.beginPath();
+    for (i = 0; i < energyDeltas.length; ++i) {
+      if (!energyDeltas[i].beat) {
+        continue;
+      }
+      var x = i / energyDeltas.length * canvas.width;
+      context.moveTo(x, 0);
+      context.lineTo(x, canvas.height);
+    }
+    context.stroke();
+  }
+
+  function updateEnergy(energy) {
+    energyHistory.push(energy);
+    if (energyHistory.length >= energyHistoryWindowSize) {
+      var mean = _.reduce(energyHistory, function (total, value) { return total + value; }, 0) / energyHistoryWindowSize;
+      energyHistory = energyHistory.slice(1, energyHistoryWindowSize);
+      energyDeltas.push({ value: Math.floor(energy - mean), beat: energy > mean * beatThreshold });
+      if (energyDeltas.length > energyHistoryWindowSize) {
+        energyDeltas = energyDeltas.slice(1, energyHistoryWindowSize);
+      }
+    }
+  }
+
+  function nextSample(analyser) {
     var bins = analyser.frequencyBinCount;
     var data = new Float32Array(bins);
     analyser.getFloatFrequencyData(data);
 
-    _.each(data, function (value, index) {
-      var bar = $(bars[index]);
-      var norm = Math.abs(128 + value) / 128 * 256;
-      bar.css('width', norm);
+    data = condense(data, 8);
 
-      var red = (norm < 128)?Math.floor(norm*2):255;
-      var green = (norm < 128)?255:(255-Math.floor(norm-128)*2);
-      var blue = 128;
-      bar.css('background-color', 'rgb(' + red + ', ' + green + ', ' + blue + ')');
+    var energy = 0;
+    _.each(data, function (value, index) {
+      var norm = Math.abs(128 + value) / 128 * 256;
+      plotBar(value, index, norm);
+      energy += norm;
     });
 
-    window.requestAnimationFrame(_.bind(updateDisplay, this, analyser));
+    updateEnergy(energy);
+    plotEnergy();
+
+    window.requestAnimationFrame(_.bind(nextSample, this, analyser));
   }
 
   var bars = [];
+  var display = null;
 
   $(document).ready(function () {
+      display = $('#display');
+      var displayHeight = display.height();
       for (var i = 1; i < 17; i++) {
-        bars.push(document.getElementById('bar' + i));
+        var bar = $('#bar' + i);
+        bars.push(bar[0]);
+        bar.css('height', (displayHeight / 8) + 'px');
       }
 
       window.requestAnimationFrame = window.requestAnimationFrame ||
@@ -106,7 +184,7 @@
         var analyser = context.createAnalyser();
         analyser.fftSize = 32;
         microphone.connect(analyser);
-        window.requestAnimationFrame(_.bind(updateDisplay, this, analyser));
+        window.requestAnimationFrame(_.bind(nextSample, this, analyser));
       }, errorCallback);
   });
   </script>
