@@ -3,7 +3,7 @@
   <style>
   #display div {
     background: #ccc;
-    height: 20px;
+    height: 15px;
     width: 0;
   }
   #bar1 {
@@ -73,6 +73,7 @@
 
   function plotBar(value, index, norm) {
     var bar = $(bars[index]);
+    norm = norm * 2;
     bar.css('width', norm / 256  * display.width() + 'px');
 
     var red = (norm < 128)?Math.floor(norm*2):255;
@@ -159,7 +160,7 @@
   }
 
   function smoothDeltas() {
-    return mean5();
+    return median3();
   }
 
   function detectBeats() {
@@ -187,11 +188,9 @@
     var data = new Float32Array(bins);
     analyser.getFloatFrequencyData(data);
 
-    data = condense(data, 8);
-
     var energy = 0;
     _.each(data, function (value, index) {
-      var norm = Math.abs(128 + value) / 128 * 256;
+      var norm = (128 + value) * (128 + value) / 16384 * 256;
       plotBar(value, index, norm);
       updateEnergy(index, norm);
     });
