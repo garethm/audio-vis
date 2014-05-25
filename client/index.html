@@ -82,9 +82,11 @@
   }
 
   function plotEnergy() {
+    var plotData = smoothDeltas();
+
     var maxDelta = 0;
-    for (var i = 0; i < energyDeltas.length; ++i) {
-      var delta = Math.abs(energyDeltas[i]);
+    for (var i = 0; i < plotData.length; ++i) {
+      var delta = Math.abs(plotData[i]);
       maxDelta = (delta > maxDelta)?delta:maxDelta;
     }
 
@@ -100,26 +102,13 @@
     context.lineJoin = 'round';
 
     context.beginPath();
-    for (var i = 0; i < energyDeltas.length; ++i) {
-      var y = energyDeltas[i] / maxDelta * canvas.height;
+    for (var i = 0; i < plotData.length; ++i) {
+      var y = plotData[i] / maxDelta * canvas.height;
       if (i === 0) {
         context.moveTo(0, y);
       } else {
-        context.lineTo(i / energyDeltas.length * canvas.width, y);
+        context.lineTo(i / plotData.length * canvas.width, y);
       }
-    }
-    context.stroke();
-
-    context.strokeStyle = '#0000ff';
-    context.lineWidth = 2;
-    context.beginPath();
-    for (i = 0; i < energyDeltas.length; ++i) {
-      if (!energyDeltas[i].beat) {
-        continue;
-      }
-      var x = i / energyDeltas.length * canvas.width;
-      context.moveTo(x, 0);
-      context.lineTo(x, canvas.height);
     }
     context.stroke();
   }
@@ -127,6 +116,50 @@
   function updateEnergy(index, energy) {
     previousAnalysis[index] = currentAnalysis[index];
     currentAnalysis[index] = energy;
+  }
+
+  function median(a1, a2, a3) {
+    return [a1, a2, a3].sort()[1];
+  }
+
+  function valuesFrom(array, index, count) {
+    var result = [];
+    var offset = Math.floor(count/2);
+    for (var i = 0; i < count; i ++) {
+      var elem = index - offset + i;
+      elem = (elem<0)?0:((elem>array.length-1)?(array.length-1):elem);
+      result [i] = array[elem];
+    }
+    return result;
+  }
+
+  function mean5() {
+    var size = 5;
+    var result = [];
+    for (var i = 0; i < energyDeltas.length; ++i) {
+      var items = valuesFrom(energyDeltas, i, size);
+      var sum = 0;
+      for (var j = 0; j < size; ++j) {
+        sum += items[j];
+      }
+      result[i] = sum / size;
+    }
+    return result;
+  }
+
+  function median3() {
+    var result = [];
+    result[0] = median(energyDeltas[0], energyDeltas[0], energyDeltas[1]);
+    for (var i = 1; i < energyDeltas.length - 1; ++i) {
+      result[i] = median(energyDeltas[i-1], energyDeltas[i], energyDeltas[i+1]);
+    }
+    result[energyDeltas.length] = median(energyDeltas[energyDeltas.length-1],
+      energyDeltas[energyDeltas.length], energyDeltas[energyDeltas.length]);
+    return result;
+  }
+
+  function smoothDeltas() {
+    return mean5();
   }
 
   function detectBeats() {
